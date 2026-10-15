@@ -36,7 +36,8 @@ fn display_offset(window_size: Size, display_size: Size, anchor_point: AnchorPoi
     layout_rect.resized(display_size, anchor_point).top_left
 }
 
-fn main() -> Result<(), core::convert::Infallible> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), core::convert::Infallible> {
     // Create three simulated monochrome 128x64 OLED displays.
 
     let mut oled_displays = Vec::new();
@@ -50,6 +51,7 @@ fn main() -> Result<(), core::convert::Infallible> {
             CENTERED,
         )
         .draw(&mut oled)
+        .await
         .unwrap();
 
         oled_displays.push(oled);
@@ -58,7 +60,7 @@ fn main() -> Result<(), core::convert::Infallible> {
     // Create a simulated color 320x240 TFT display.
 
     let mut tft: SimulatorDisplay<Rgb565> = SimulatorDisplay::new(Size::new(320, 240));
-    tft.clear(Rgb565::new(5, 10, 5)).unwrap();
+    tft.clear(Rgb565::new(5, 10, 5)).await.unwrap();
 
     Text::with_text_style(
         &format!("Draw here"),
@@ -67,13 +69,14 @@ fn main() -> Result<(), core::convert::Infallible> {
         CENTERED,
     )
     .draw(&mut tft)
+    .await
     .unwrap();
 
     // The simulated displays can now be added to common simulator window.
 
     let window_size = Size::new(1300, 500);
     let mut window = MultiWindow::new("Multiple displays example", window_size);
-    window.clear(Rgb888::CSS_DIM_GRAY);
+    window.clear(Rgb888::CSS_DIM_GRAY).await;
 
     let oled_settings = OutputSettingsBuilder::new()
         .theme(BinaryColorTheme::OledBlue)
@@ -110,10 +113,10 @@ fn main() -> Result<(), core::convert::Infallible> {
         // Call `update_display` for all display. Note that the window won't be
         // updated until `window.flush` is called.
         for oled in &oled_displays {
-            window.update_display(oled);
+            window.update_display(oled).await;
         }
-        window.update_display(&tft);
-        window.flush();
+        window.update_display(&tft).await;
+        window.flush().await;
 
         for event in window.events() {
             match event {
@@ -129,7 +132,11 @@ fn main() -> Result<(), core::convert::Infallible> {
                             .stroke_color(BinaryColor::from(is_inside))
                             .build();
 
-                        oled.bounding_box().into_styled(style).draw(oled).unwrap();
+                        oled.bounding_box()
+                            .into_styled(style)
+                            .draw(oled)
+                            .await
+                            .unwrap();
                     }
 
                     if mouse_down {
@@ -137,6 +144,7 @@ fn main() -> Result<(), core::convert::Infallible> {
                             Circle::with_center(point, 10)
                                 .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DODGER_BLUE))
                                 .draw(&mut tft)
+                                .await
                                 .unwrap();
                         }
                     }

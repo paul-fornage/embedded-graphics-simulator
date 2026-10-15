@@ -49,7 +49,7 @@ where
     }
 
     /// Draws a display using the given position and output setting.
-    pub fn draw_display<DisplayC>(
+    pub async fn draw_display<DisplayC>(
         &mut self,
         display: &SimulatorDisplay<DisplayC>,
         position: Point,
@@ -62,6 +62,7 @@ where
             &display_area,
             output_settings.theme.convert(Rgb888::BLACK).into(),
         )
+        .await
         .unwrap();
 
         if output_settings.scale == Size::new(1, 1) && output_settings.pixel_spacing == 0 {
@@ -76,6 +77,7 @@ where
                     Pixel(p + position, output_color)
                 })
                 .draw(self)
+                .await
                 .unwrap();
         } else {
             for p in display.bounding_box().points() {
@@ -90,6 +92,7 @@ where
                     ),
                     output_color,
                 )
+                .await
                 .unwrap();
             }
         }
@@ -137,7 +140,7 @@ impl DrawTarget for OutputImage<Rgb888> {
     type Color = Rgb888;
     type Error = ();
 
-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    async fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
@@ -158,7 +161,7 @@ impl DrawTarget for OutputImage<Rgb888> {
         Ok(())
     }
 
-    fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
+    async fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
         let area = area.intersection(&self.bounding_box());
 
         let bytes = color.to_be_bytes();
@@ -204,7 +207,7 @@ impl DrawTarget for OutputImage<Gray8> {
     type Color = Gray8;
     type Error = ();
 
-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    async fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
@@ -223,7 +226,7 @@ impl DrawTarget for OutputImage<Gray8> {
         Ok(())
     }
 
-    fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
+    async fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
         let area = area.intersection(&self.bounding_box());
 
         let bytes_per_row = self.size.width as usize;
@@ -273,8 +276,8 @@ mod tests {
         assert_eq!(image.data.as_ref(), &[0u8; 6 * 5 * 3]);
     }
 
-    #[test]
-    fn rgb888_draw_iter() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn rgb888_draw_iter() {
         let mut image = OutputImage::<Rgb888>::new(Size::new(4, 6));
 
         [
@@ -289,6 +292,7 @@ mod tests {
         ]
         .into_iter()
         .draw(&mut image)
+        .await
         .unwrap();
 
         assert_eq!(
@@ -304,8 +308,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rgb888_fill_solid() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn rgb888_fill_solid() {
         let mut image = OutputImage::<Rgb888>::new(Size::new(4, 6));
 
         image
@@ -313,6 +317,7 @@ mod tests {
                 &Rectangle::new(Point::new(2, 3), Size::new(10, 20)),
                 Rgb888::new(0x01, 0x02, 0x03),
             )
+            .await
             .unwrap();
 
         assert_eq!(
@@ -334,8 +339,8 @@ mod tests {
         assert_eq!(image.data.as_ref(), &[0u8; 6 * 5]);
     }
 
-    #[test]
-    fn gray8_draw_iter() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn gray8_draw_iter() {
         let mut image = OutputImage::<Gray8>::new(Size::new(12, 6));
 
         [
@@ -350,6 +355,7 @@ mod tests {
         ]
         .into_iter()
         .draw(&mut image)
+        .await
         .unwrap();
 
         assert_eq!(
@@ -365,8 +371,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn gray8_fill_solid() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn gray8_fill_solid() {
         let mut image = OutputImage::<Gray8>::new(Size::new(4, 6));
 
         image
@@ -374,6 +380,7 @@ mod tests {
                 &Rectangle::new(Point::new(2, 3), Size::new(10, 20)),
                 Gray8::WHITE,
             )
+            .await
             .unwrap();
 
         assert_eq!(

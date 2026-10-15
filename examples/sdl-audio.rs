@@ -28,7 +28,8 @@ const PERIOD: f32 = 0.5; // seconds
 const SAMPLES_PER_PERIOD: f32 = SAMPLE_RATE as f32 * PERIOD;
 const PITCH_CHANGE_PER_SAMPLE: f32 = (PITCH_MAX - PITCH_MIN) / SAMPLES_PER_PERIOD;
 
-fn main() -> Result<(), core::convert::Infallible> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), core::convert::Infallible> {
     // Prepare the audio "engine" with gate control
     let gate = Arc::new(AtomicBool::new(false));
     let audio_wrapper = AudioWrapper::new(gate.clone());
@@ -66,9 +67,9 @@ fn main() -> Result<(), core::convert::Infallible> {
     let text = Text::new("Press space...", text_position, text_style);
 
     let mut display: SimulatorDisplay<BinaryColor> = SimulatorDisplay::new(Size::new(128, 64));
-    text.draw(&mut display).unwrap();
+    text.draw(&mut display).await.unwrap();
     'running: loop {
-        window.update(&display);
+        window.update(&display).await;
 
         for event in window.events() {
             match event {
@@ -77,13 +78,13 @@ fn main() -> Result<(), core::convert::Infallible> {
                     keycode, repeat, ..
                 } if keycode == Keycode::Space && !repeat => {
                     gate.store(true, Ordering::SeqCst);
-                    display.clear(BinaryColor::On).unwrap();
+                    display.clear(BinaryColor::On).await.unwrap();
                 }
                 SimulatorEvent::KeyUp { keycode, .. } => match keycode {
                     Keycode::Space => {
                         gate.store(false, Ordering::SeqCst);
-                        display.clear(BinaryColor::Off).unwrap();
-                        text.draw(&mut display).unwrap();
+                        display.clear(BinaryColor::Off).await.unwrap();
+                        text.draw(&mut display).await.unwrap();
                     }
                     _ => {}
                 },

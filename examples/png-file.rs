@@ -6,7 +6,8 @@ use embedded_graphics::{
 };
 use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay};
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(256, 64));
 
     let large_text = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
@@ -22,10 +23,11 @@ fn main() {
         centered,
     )
     .draw(&mut display)
+    .await
     .unwrap();
 
     let output_settings = OutputSettingsBuilder::new().scale(2).build();
-    let output_image = display.to_rgb_output_image(&output_settings);
+    let output_image = display.to_rgb_output_image(&output_settings).await;
 
     let path = std::env::args_os()
         .nth(1)

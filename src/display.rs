@@ -128,6 +128,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
     /// use embedded_graphics::{pixelcolor::Rgb888, prelude::*};
     /// use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay};
     ///
@@ -137,15 +139,18 @@ where
     ///
     /// // draw something to the display
     ///
-    /// let output_image = display.to_rgb_output_image(&output_settings);
+    /// let output_image = display.to_rgb_output_image(&output_settings).await;
     /// assert_eq!(output_image.size(), Size::new(256, 128));
     ///
     /// // use output image:
     /// // example: output_image.save_png("out.png")?;
+    /// # }
     /// ```
-    pub fn to_rgb_output_image(&self, output_settings: &OutputSettings) -> OutputImage<Rgb888> {
+    pub async fn to_rgb_output_image(&self, output_settings: &OutputSettings) -> OutputImage<Rgb888> {
         let mut output = OutputImage::new(self.output_size(output_settings));
-        output.draw_display(self, Point::zero(), output_settings);
+        output
+            .draw_display(self, Point::zero(), output_settings)
+            .await;
 
         output
     }
@@ -155,6 +160,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
     /// use embedded_graphics::{pixelcolor::Gray8, prelude::*};
     /// use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay};
     ///
@@ -164,19 +171,22 @@ where
     ///
     /// // draw something to the display
     ///
-    /// let output_image = display.to_grayscale_output_image(&output_settings);
+    /// let output_image = display.to_grayscale_output_image(&output_settings).await;
     /// assert_eq!(output_image.size(), Size::new(256, 128));
     ///
     /// // use output image:
     /// // example: output_image.save_png("out.png")?;
+    /// # }
     /// ```
-    pub fn to_grayscale_output_image(
+    pub async fn to_grayscale_output_image(
         &self,
         output_settings: &OutputSettings,
     ) -> OutputImage<Gray8> {
         let size = self.output_size(output_settings);
         let mut output = OutputImage::new(size);
-        output.draw_display(self, Point::zero(), output_settings);
+        output
+            .draw_display(self, Point::zero(), output_settings)
+            .await;
 
         output
     }
@@ -260,7 +270,7 @@ impl<C: PixelColor> DrawTarget for SimulatorDisplay<C> {
     type Color = C;
     type Error = core::convert::Infallible;
 
-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    async fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
@@ -295,16 +305,17 @@ mod tests {
         primitives::{Circle, Line, PrimitiveStyle},
     };
 
-    #[test]
-    fn rgb_output_image() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn rgb_output_image() {
         let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(2, 4));
 
         Line::new(Point::new(0, 0), Point::new(1, 3))
             .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
             .draw(&mut display)
+            .await
             .unwrap();
 
-        let image = display.to_rgb_output_image(&OutputSettings::default());
+        let image = display.to_rgb_output_image(&OutputSettings::default()).await;
         assert_eq!(image.size(), display.size());
 
         let expected: &[u8] = &[
@@ -316,16 +327,17 @@ mod tests {
         assert_eq!(image.data.as_ref(), expected);
     }
 
-    #[test]
-    fn grayscale_image_buffer() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn grayscale_image_buffer() {
         let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(2, 4));
 
         Line::new(Point::new(0, 0), Point::new(1, 3))
             .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
             .draw(&mut display)
+            .await
             .unwrap();
 
-        let image = display.to_grayscale_output_image(&OutputSettings::default());
+        let image = display.to_grayscale_output_image(&OutputSettings::default()).await;
         assert_eq!(image.size(), display.size());
 
         let expected: &[u8] = &[
@@ -480,8 +492,8 @@ mod tests {
         assert_eq!(display.diff(&expected), None);
     }
 
-    #[test]
-    fn diff_not_equal() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn diff_not_equal() {
         let circle = Circle::new(Point::zero(), 3);
 
         let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(4, 6));
@@ -490,6 +502,7 @@ mod tests {
         circle
             .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
             .draw(&mut display)
+            .await
             .unwrap();
 
         assert_eq!(display.diff(&expected), Some(display));

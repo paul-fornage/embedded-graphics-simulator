@@ -8,7 +8,8 @@ use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, Window,
 };
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(256, 64));
 
     let large_text = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
@@ -24,6 +25,7 @@ fn main() {
         centered,
     )
     .draw(&mut display)
+    .await
     .unwrap();
 
     // Uncomment one of the `theme` lines to use a different theme.
@@ -36,5 +38,5 @@ fn main() {
         .build();
 
     let mut window = Window::new("Themes", &output_settings);
-    window.show_static(&display);
+    window.show_static(&display).await;
 }

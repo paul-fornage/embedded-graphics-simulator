@@ -61,8 +61,8 @@ impl MultiWindow {
     ///
     /// This method can be used to set the background color for the regions of
     /// the window that aren't covered by a display.
-    pub fn clear(&mut self, color: Rgb888) {
-        self.framebuffer.clear(color).unwrap();
+    pub async fn clear(&mut self, color: Rgb888) {
+        self.framebuffer.clear(color).await.unwrap();
     }
 
     /// Updates one display.
@@ -70,7 +70,7 @@ impl MultiWindow {
     /// This method only updates the internal framebuffer. Use
     /// [`flush`](Self::flush) after all displays have been updated to finally
     /// update the window.
-    pub fn update_display<C>(&mut self, display: &SimulatorDisplay<C>)
+    pub async fn update_display<C>(&mut self, display: &SimulatorDisplay<C>)
     where
         C: PixelColor + Into<Rgb888> + From<Rgb888>,
     {
@@ -79,18 +79,22 @@ impl MultiWindow {
             .get(&display.id)
             .expect("update_display called for a display that hasn't been added with add_display");
 
-        self.framebuffer.draw_display(
-            display,
-            display_settings.offset,
-            &display_settings.output_settings,
-        );
+        self.framebuffer
+            .draw_display(
+                display,
+                display_settings.offset,
+                &display_settings.output_settings,
+            )
+            .await;
     }
 
     /// Updates the window from the internal framebuffer.
-    pub fn flush(&mut self) {
+    ///
+    /// Requires a Tokio runtime with time enabled while the FPS limit is enabled.
+    pub async fn flush(&mut self) {
         self.sdl_window.update(&self.framebuffer);
 
-        self.fps_limiter.sleep();
+        self.fps_limiter.sleep().await;
     }
 
     /// Returns an iterator of all captured simulator events.

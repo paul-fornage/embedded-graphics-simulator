@@ -4,7 +4,7 @@ use std::{
     io::BufReader,
     num::NonZeroU32,
     ops::Deref,
-    process, thread,
+    process,
     time::{Duration, Instant},
 };
 
@@ -43,14 +43,14 @@ impl FpsLimiter {
         Some(Duration::from_secs_f32(1.0 / self.max_fps?.get() as f32))
     }
 
-    fn sleep(&mut self) {
+    async fn sleep(&mut self) {
         let Some(duration) = self.desired_loop_duration() else {
             return;
         };
 
         let sleep_duration =
             (self.frame_start + duration).saturating_duration_since(Instant::now());
-        thread::sleep(sleep_duration);
+        tokio::time::sleep(sleep_duration).await;
 
         self.frame_start = Instant::now();
     }
@@ -81,12 +81,14 @@ impl Window {
     }
 
     /// Updates the window.
-    pub fn update<C>(&mut self, display: &SimulatorDisplay<C>)
+    ///
+    /// Requires a Tokio runtime with time enabled while the FPS limit is enabled.
+    pub async fn update<C>(&mut self, display: &SimulatorDisplay<C>)
     where
         C: PixelColor + Into<Rgb888> + From<Rgb888>,
     {
         if let Ok(path) = env::var("EG_SIMULATOR_CHECK") {
-            let output = display.to_rgb_output_image(&self.output_settings);
+            let output = display.to_rgb_output_image(&self.output_settings).await;
 
             let png_file = BufReader::new(File::open(path).unwrap());
             let expected = image::load(png_file, image::ImageFormat::Png)
@@ -138,6 +140,7 @@ impl Window {
         if let Ok(path) = env::var("EG_SIMULATOR_DUMP") {
             display
                 .to_rgb_output_image(&self.output_settings)
+                .await
                 .save_png(path)
                 .unwrap();
             process::exit(0);
@@ -146,6 +149,7 @@ impl Window {
         if let Ok(path) = env::var("EG_SIMULATOR_DUMP_RAW") {
             display
                 .to_rgb_output_image(&OutputSettings::default())
+                .await
                 .save_png(path)
                 .unwrap();
             process::exit(0);
@@ -166,29 +170,32 @@ impl Window {
             let framebuffer = self.framebuffer.as_mut().unwrap();
             let sdl_window = self.sdl_window.as_mut().unwrap();
 
-            framebuffer.draw_display(display, Point::zero(), &self.output_settings);
+            framebuffer
+                .draw_display(display, Point::zero(), &self.output_settings)
+                .await;
             sdl_window.update(framebuffer);
         }
 
-        self.fps_limiter.sleep();
+        self.fps_limiter.sleep().await;
     }
 
     /// Shows a static display.
     ///
     /// This methods updates the window once and loops until the simulator window
     /// is closed.
-    pub fn show_static<C>(&mut self, display: &SimulatorDisplay<C>)
+    /// Requires a Tokio runtime with time enabled for frame limiting and event waits.
+    pub async fn show_static<C>(&mut self, display: &SimulatorDisplay<C>)
     where
         C: PixelColor + Into<Rgb888> + From<Rgb888>,
     {
-        self.update(display);
+        self.update(display).await;
 
         #[cfg(feature = "with-sdl")]
         'running: loop {
             if self.events().any(|e| e == SimulatorEvent::Quit) {
                 break 'running;
             }
-            thread::sleep(Duration::from_millis(20));
+            tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }
 
