@@ -128,8 +128,8 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// # #[tokio::main(flavor = "current_thread")]
-    /// # async fn main() {
+    /// # fn main() {
+    /// # embassy_futures::block_on(async {
     /// use embedded_graphics::{pixelcolor::Rgb888, prelude::*};
     /// use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay};
     ///
@@ -144,6 +144,7 @@ where
     ///
     /// // use output image:
     /// // example: output_image.save_png("out.png")?;
+    /// # });
     /// # }
     /// ```
     pub async fn to_rgb_output_image(&self, output_settings: &OutputSettings) -> OutputImage<Rgb888> {
@@ -160,8 +161,8 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// # #[tokio::main(flavor = "current_thread")]
-    /// # async fn main() {
+    /// # fn main() {
+    /// # embassy_futures::block_on(async {
     /// use embedded_graphics::{pixelcolor::Gray8, prelude::*};
     /// use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay};
     ///
@@ -176,6 +177,7 @@ where
     ///
     /// // use output image:
     /// // example: output_image.save_png("out.png")?;
+    /// # });
     /// # }
     /// ```
     pub async fn to_grayscale_output_image(
@@ -305,48 +307,52 @@ mod tests {
         primitives::{Circle, Line, PrimitiveStyle},
     };
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn rgb_output_image() {
-        let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(2, 4));
+    #[test]
+    fn rgb_output_image() {
+        embassy_futures::block_on(async {
+            let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(2, 4));
 
-        Line::new(Point::new(0, 0), Point::new(1, 3))
-            .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
-            .draw(&mut display)
-            .await
-            .unwrap();
+            Line::new(Point::new(0, 0), Point::new(1, 3))
+                .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
+                .draw(&mut display)
+                .await
+                .unwrap();
 
-        let image = display.to_rgb_output_image(&OutputSettings::default()).await;
-        assert_eq!(image.size(), display.size());
+            let image = display.to_rgb_output_image(&OutputSettings::default()).await;
+            assert_eq!(image.size(), display.size());
 
-        let expected: &[u8] = &[
-            255, 255, 255, 0, 0, 0, //
-            255, 255, 255, 0, 0, 0, //
-            0, 0, 0, 255, 255, 255, //
-            0, 0, 0, 255, 255, 255, //
-        ];
-        assert_eq!(image.data.as_ref(), expected);
+            let expected: &[u8] = &[
+                255, 255, 255, 0, 0, 0, //
+                255, 255, 255, 0, 0, 0, //
+                0, 0, 0, 255, 255, 255, //
+                0, 0, 0, 255, 255, 255, //
+            ];
+            assert_eq!(image.data.as_ref(), expected);
+        });
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn grayscale_image_buffer() {
-        let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(2, 4));
+    #[test]
+    fn grayscale_image_buffer() {
+        embassy_futures::block_on(async {
+            let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(2, 4));
 
-        Line::new(Point::new(0, 0), Point::new(1, 3))
-            .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
-            .draw(&mut display)
-            .await
-            .unwrap();
+            Line::new(Point::new(0, 0), Point::new(1, 3))
+                .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
+                .draw(&mut display)
+                .await
+                .unwrap();
 
-        let image = display.to_grayscale_output_image(&OutputSettings::default()).await;
-        assert_eq!(image.size(), display.size());
+            let image = display.to_grayscale_output_image(&OutputSettings::default()).await;
+            assert_eq!(image.size(), display.size());
 
-        let expected: &[u8] = &[
-            255, 0, //
-            255, 0, //
-            0, 255, //
-            0, 255, //
-        ];
-        assert_eq!(image.data.as_ref(), expected);
+            let expected: &[u8] = &[
+                255, 0, //
+                255, 0, //
+                0, 255, //
+                0, 255, //
+            ];
+            assert_eq!(image.data.as_ref(), expected);
+        });
     }
 
     #[test]
@@ -492,20 +498,22 @@ mod tests {
         assert_eq!(display.diff(&expected), None);
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn diff_not_equal() {
-        let circle = Circle::new(Point::zero(), 3);
+    #[test]
+    fn diff_not_equal() {
+        embassy_futures::block_on(async {
+            let circle = Circle::new(Point::zero(), 3);
 
-        let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(4, 6));
-        let expected = display.clone();
+            let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(4, 6));
+            let expected = display.clone();
 
-        circle
-            .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
-            .draw(&mut display)
-            .await
-            .unwrap();
+            circle
+                .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
+                .draw(&mut display)
+                .await
+                .unwrap();
 
-        assert_eq!(display.diff(&expected), Some(display));
+            assert_eq!(display.diff(&expected), Some(display));
+        });
     }
 
     #[test]

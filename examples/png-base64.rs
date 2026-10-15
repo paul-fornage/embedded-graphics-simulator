@@ -6,31 +6,32 @@ use embedded_graphics::{
 };
 use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay};
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
-    let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(256, 64));
+fn main() {
+    embassy_futures::block_on(async {
+        let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(256, 64));
 
-    let large_text = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
-    let centered = TextStyleBuilder::new()
-        .baseline(Baseline::Middle)
-        .alignment(Alignment::Center)
-        .build();
+        let large_text = MonoTextStyle::new(&FONT_10X20, BinaryColor::On);
+        let centered = TextStyleBuilder::new()
+            .baseline(Baseline::Middle)
+            .alignment(Alignment::Center)
+            .build();
 
-    Text::with_text_style(
-        "embedded-graphics",
-        display.bounding_box().center(),
-        large_text,
-        centered,
-    )
-    .draw(&mut display)
-    .await
-    .unwrap();
+        Text::with_text_style(
+            "embedded-graphics",
+            display.bounding_box().center(),
+            large_text,
+            centered,
+        )
+        .draw(&mut display)
+        .await
+        .unwrap();
 
-    let output_settings = OutputSettingsBuilder::new().scale(2).build();
-    let output_image = display.to_grayscale_output_image(&output_settings).await;
+        let output_settings = OutputSettingsBuilder::new().scale(2).build();
+        let output_image = display.to_grayscale_output_image(&output_settings).await;
 
-    println!(
-        "<img src=\"data:image/png;base64,{}\">",
-        output_image.to_base64_png().unwrap()
-    );
+        println!(
+            "<img src=\"data:image/png;base64,{}\">",
+            output_image.to_base64_png().unwrap()
+        );
+    });
 }

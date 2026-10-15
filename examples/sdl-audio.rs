@@ -28,72 +28,73 @@ const PERIOD: f32 = 0.5; // seconds
 const SAMPLES_PER_PERIOD: f32 = SAMPLE_RATE as f32 * PERIOD;
 const PITCH_CHANGE_PER_SAMPLE: f32 = (PITCH_MAX - PITCH_MIN) / SAMPLES_PER_PERIOD;
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), core::convert::Infallible> {
-    // Prepare the audio "engine" with gate control
-    let gate = Arc::new(AtomicBool::new(false));
-    let audio_wrapper = AudioWrapper::new(gate.clone());
+#[embassy_executor::main]
+async fn main(_spawner: embassy_executor::Spawner) {
+    {
+        // Prepare the audio "engine" with gate control
+        let gate = Arc::new(AtomicBool::new(false));
+        let audio_wrapper = AudioWrapper::new(gate.clone());
 
-    let audio_spec = AudioSpecDesired {
-        freq: Some(SAMPLE_RATE),
-        channels: Some(1),
-        samples: Some(32),
-    };
+        let audio_spec = AudioSpecDesired {
+            freq: Some(SAMPLE_RATE),
+            channels: Some(1),
+            samples: Some(32),
+        };
 
-    // Initialize the SDL audio subsystem.
-    //
-    // `sdl2` allows multiple instances of the SDL context to exist, which makes
-    // it possible to access SDL subsystems which aren't used by the simulator.
-    // But keep in mind that only one `EventPump` can exists and the simulator
-    // window creation will fail if the `EventPump` is claimed in advance.
-    let sdl = sdl2::init().unwrap();
-    let audio_subsystem = sdl.audio().unwrap();
+        // Initialize the SDL audio subsystem.
+        //
+        // `sdl2` allows multiple instances of the SDL context to exist, which makes
+        // it possible to access SDL subsystems which aren't used by the simulator.
+        // But keep in mind that only one `EventPump` can exists and the simulator
+        // window creation will fail if the `EventPump` is claimed in advance.
+        let sdl = sdl2::init().unwrap();
+        let audio_subsystem = sdl.audio().unwrap();
 
-    // Start audio playback by opening the device and setting the custom callback.
-    let audio_device = audio_subsystem
-        .open_playback(None, &audio_spec, |_| audio_wrapper)
-        .unwrap();
-    audio_device.resume();
+        // Start audio playback by opening the device and setting the custom callback.
+        let audio_device = audio_subsystem
+            .open_playback(None, &audio_spec, |_| audio_wrapper)
+            .unwrap();
+        audio_device.resume();
 
-    let output_settings = OutputSettingsBuilder::new()
-        .scale(4)
-        .theme(embedded_graphics_simulator::BinaryColorTheme::OledWhite)
-        .build();
+        let output_settings = OutputSettingsBuilder::new()
+            .scale(4)
+            .theme(embedded_graphics_simulator::BinaryColorTheme::OledWhite)
+            .build();
 
-    let mut window = Window::new("Simulator audio example", &output_settings);
+        let mut window = Window::new("Simulator audio example", &output_settings);
 
-    let text_style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
-    let text_position = Point::new(25, 30);
-    let text = Text::new("Press space...", text_position, text_style);
+        let text_style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
+        let text_position = Point::new(25, 30);
+        let text = Text::new("Press space...", text_position, text_style);
 
-    let mut display: SimulatorDisplay<BinaryColor> = SimulatorDisplay::new(Size::new(128, 64));
-    text.draw(&mut display).await.unwrap();
-    'running: loop {
-        window.update(&display).await;
+        let mut display: SimulatorDisplay<BinaryColor> = SimulatorDisplay::new(Size::new(128, 64));
+        text.draw(&mut display).await.unwrap();
+        'running: loop {
+            window.update(&display).await;
 
-        for event in window.events() {
-            match event {
-                SimulatorEvent::Quit => break 'running,
-                SimulatorEvent::KeyDown {
-                    keycode, repeat, ..
-                } if keycode == Keycode::Space && !repeat => {
-                    gate.store(true, Ordering::SeqCst);
-                    display.clear(BinaryColor::On).await.unwrap();
-                }
-                SimulatorEvent::KeyUp { keycode, .. } => match keycode {
-                    Keycode::Space => {
-                        gate.store(false, Ordering::SeqCst);
-                        display.clear(BinaryColor::Off).await.unwrap();
-                        text.draw(&mut display).await.unwrap();
+            for event in window.events() {
+                match event {
+                    SimulatorEvent::Quit => break 'running,
+                    SimulatorEvent::KeyDown {
+                        keycode, repeat, ..
+                    } if keycode == Keycode::Space && !repeat => {
+                        gate.store(true, Ordering::SeqCst);
+                        display.clear(BinaryColor::On).await.unwrap();
                     }
+                    SimulatorEvent::KeyUp { keycode, .. } => match keycode {
+                        Keycode::Space => {
+                            gate.store(false, Ordering::SeqCst);
+                            display.clear(BinaryColor::Off).await.unwrap();
+                            text.draw(&mut display).await.unwrap();
+                        }
+                        _ => {}
+                    },
                     _ => {}
-                },
-                _ => {}
+                }
             }
         }
     }
-
-    Ok(())
+    std::process::exit(0);
 }
 
 struct AudioWrapper {

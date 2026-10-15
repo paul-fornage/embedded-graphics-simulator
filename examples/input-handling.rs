@@ -41,43 +41,45 @@ async fn move_circle(
     Ok(())
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), core::convert::Infallible> {
-    let mut display: SimulatorDisplay<Rgb888> = SimulatorDisplay::new(Size::new(800, 480));
-    let mut window = Window::new("Click to move circle", &OutputSettings::default());
+#[embassy_executor::main]
+async fn main(_spawner: embassy_executor::Spawner) {
+    {
+        let mut display: SimulatorDisplay<Rgb888> = SimulatorDisplay::new(Size::new(800, 480));
+        let mut window = Window::new("Click to move circle", &OutputSettings::default());
 
-    let mut position = Point::new(200, 200);
-    Circle::with_center(position, 200)
-        .into_styled(PrimitiveStyle::with_fill(FOREGROUND_COLOR))
-        .draw(&mut display)
-        .await?;
+        let mut position = Point::new(200, 200);
+        Circle::with_center(position, 200)
+            .into_styled(PrimitiveStyle::with_fill(FOREGROUND_COLOR))
+            .draw(&mut display)
+            .await
+            .unwrap();
 
-    'running: loop {
-        window.update(&display).await;
+        'running: loop {
+            window.update(&display).await;
 
-        for event in window.events() {
-            match event {
-                SimulatorEvent::Quit => break 'running,
-                SimulatorEvent::KeyDown { keycode, .. } => {
-                    let delta = match keycode {
-                        Keycode::Left => Point::new(-KEYBOARD_DELTA, 0),
-                        Keycode::Right => Point::new(KEYBOARD_DELTA, 0),
-                        Keycode::Up => Point::new(0, -KEYBOARD_DELTA),
-                        Keycode::Down => Point::new(0, KEYBOARD_DELTA),
-                        _ => Point::zero(),
-                    };
-                    let new_position = position + delta;
-                    move_circle(&mut display, position, new_position).await?;
-                    position = new_position;
+            for event in window.events() {
+                match event {
+                    SimulatorEvent::Quit => break 'running,
+                    SimulatorEvent::KeyDown { keycode, .. } => {
+                        let delta = match keycode {
+                            Keycode::Left => Point::new(-KEYBOARD_DELTA, 0),
+                            Keycode::Right => Point::new(KEYBOARD_DELTA, 0),
+                            Keycode::Up => Point::new(0, -KEYBOARD_DELTA),
+                            Keycode::Down => Point::new(0, KEYBOARD_DELTA),
+                            _ => Point::zero(),
+                        };
+                        let new_position = position + delta;
+                        move_circle(&mut display, position, new_position).await.unwrap();
+                        position = new_position;
+                    }
+                    SimulatorEvent::MouseButtonUp { point, .. } => {
+                        move_circle(&mut display, position, point).await.unwrap();
+                        position = point;
+                    }
+                    _ => {}
                 }
-                SimulatorEvent::MouseButtonUp { point, .. } => {
-                    move_circle(&mut display, position, point).await?;
-                    position = point;
-                }
-                _ => {}
             }
         }
     }
-
-    Ok(())
+    std::process::exit(0);
 }

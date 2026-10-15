@@ -5,10 +5,13 @@
 //! interactive demos to show off embedded graphics features.
 //!
 //! This fork uses async embedded-graphics. Drawing, image conversion, and window updates must be
-//! awaited. Window frame limiting and event waits require a Tokio runtime with time enabled;
-//! use a current-thread runtime to keep SDL on the main thread. Add Tokio with the `macros`,
-//! `rt`, and `time` features to run the examples below.
-//! The dependency in this checkout points to the sibling `../embedded-graphics` async fork.
+//! awaited. Window frame limiting and event waits use `embassy-time` with its desktop time driver.
+//! The library does not create an executor. Keep SDL window operations on the main thread.
+//!
+//! Interactive examples use `embassy-executor` with the `platform-std` and `executor-thread`
+//! features, plus `critical-section` with its `std` feature. Image-only examples and tests use
+//! `embassy-futures::block_on`. Interactive examples exit the process after closing their windows
+//! because the Embassy executor runs indefinitely.
 //!
 //! # [Examples](https://github.com/embedded-graphics/examples)
 //!
@@ -26,45 +29,51 @@
 //! };
 //! use embedded_graphics_simulator::{BinaryColorTheme, SimulatorDisplay, Window, OutputSettingsBuilder};
 //!
-//! #[tokio::main(flavor = "current_thread")]
-//! async fn main() -> Result<(), core::convert::Infallible> {
-//!     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
+//! #[embassy_executor::main]
+//! async fn main(_spawner: embassy_executor::Spawner) {
+//!     {
+//!         let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
 //!
-//!     let line_style = PrimitiveStyle::with_stroke(BinaryColor::On, 1);
-//!     let text_style = MonoTextStyle::new(&FONT_6X9, BinaryColor::On);
+//!         let line_style = PrimitiveStyle::with_stroke(BinaryColor::On, 1);
+//!         let text_style = MonoTextStyle::new(&FONT_6X9, BinaryColor::On);
 //!
-//!     Circle::new(Point::new(72, 8), 48)
-//!         .into_styled(line_style)
-//!         .draw(&mut display)
-//!         .await?;
+//!         Circle::new(Point::new(72, 8), 48)
+//!             .into_styled(line_style)
+//!             .draw(&mut display)
+//!             .await
+//!             .unwrap();
 //!
-//!     Line::new(Point::new(48, 16), Point::new(8, 16))
-//!         .into_styled(line_style)
-//!         .draw(&mut display)
-//!         .await?;
+//!         Line::new(Point::new(48, 16), Point::new(8, 16))
+//!             .into_styled(line_style)
+//!             .draw(&mut display)
+//!             .await
+//!             .unwrap();
 //!
-//!     Line::new(Point::new(48, 16), Point::new(64, 32))
-//!         .into_styled(line_style)
-//!         .draw(&mut display)
-//!         .await?;
+//!         Line::new(Point::new(48, 16), Point::new(64, 32))
+//!             .into_styled(line_style)
+//!             .draw(&mut display)
+//!             .await
+//!             .unwrap();
 //!
-//!     Rectangle::new(Point::new(79, 15), Size::new(34, 34))
-//!         .into_styled(line_style)
-//!         .draw(&mut display)
-//!         .await?;
+//!         Rectangle::new(Point::new(79, 15), Size::new(34, 34))
+//!             .into_styled(line_style)
+//!             .draw(&mut display)
+//!             .await
+//!             .unwrap();
 //!
-//!     Text::new("Hello World!", Point::new(5, 5), text_style)
-//!         .draw(&mut display)
-//!         .await?;
+//!         Text::new("Hello World!", Point::new(5, 5), text_style)
+//!             .draw(&mut display)
+//!             .await
+//!             .unwrap();
 //!
-//!     let output_settings = OutputSettingsBuilder::new()
-//!         .theme(BinaryColorTheme::OledBlue)
-//!         .build();
-//!     Window::new("Hello World", &output_settings)
-//!         .show_static(&display)
-//!         .await;
-//!
-//!     Ok(())
+//!         let output_settings = OutputSettingsBuilder::new()
+//!             .theme(BinaryColorTheme::OledBlue)
+//!             .build();
+//!         Window::new("Hello World", &output_settings)
+//!             .show_static(&display)
+//!             .await;
+//!     }
+//!     std::process::exit(0);
 //! }
 //! ```
 //!

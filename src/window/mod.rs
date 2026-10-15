@@ -5,9 +5,9 @@ use std::{
     num::NonZeroU32,
     ops::Deref,
     process,
-    time::{Duration, Instant},
 };
 
+use embassy_time::{Duration, Instant, Timer, TICK_HZ};
 use embedded_graphics::{pixelcolor::Rgb888, prelude::*};
 
 use crate::{
@@ -40,7 +40,8 @@ impl FpsLimiter {
     }
 
     fn desired_loop_duration(&self) -> Option<Duration> {
-        Some(Duration::from_secs_f32(1.0 / self.max_fps?.get() as f32))
+        let ticks = TICK_HZ.div_ceil(u64::from(self.max_fps?.get()));
+        Some(Duration::from_ticks(ticks))
     }
 
     async fn sleep(&mut self) {
@@ -48,9 +49,7 @@ impl FpsLimiter {
             return;
         };
 
-        let sleep_duration =
-            (self.frame_start + duration).saturating_duration_since(Instant::now());
-        tokio::time::sleep(sleep_duration).await;
+        Timer::at(self.frame_start + duration).await;
 
         self.frame_start = Instant::now();
     }
@@ -82,7 +81,7 @@ impl Window {
 
     /// Updates the window.
     ///
-    /// Requires a Tokio runtime with time enabled while the FPS limit is enabled.
+    /// Uses Embassy time for frame limiting.
     pub async fn update<C>(&mut self, display: &SimulatorDisplay<C>)
     where
         C: PixelColor + Into<Rgb888> + From<Rgb888>,
@@ -183,7 +182,7 @@ impl Window {
     ///
     /// This methods updates the window once and loops until the simulator window
     /// is closed.
-    /// Requires a Tokio runtime with time enabled for frame limiting and event waits.
+    /// Uses Embassy time for frame limiting and event waits.
     pub async fn show_static<C>(&mut self, display: &SimulatorDisplay<C>)
     where
         C: PixelColor + Into<Rgb888> + From<Rgb888>,
@@ -195,7 +194,7 @@ impl Window {
             if self.events().any(|e| e == SimulatorEvent::Quit) {
                 break 'running;
             }
-            tokio::time::sleep(Duration::from_millis(20)).await;
+            Timer::after_millis(20).await;
         }
     }
 

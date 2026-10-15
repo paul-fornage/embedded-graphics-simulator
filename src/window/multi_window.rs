@@ -90,7 +90,7 @@ impl MultiWindow {
 
     /// Updates the window from the internal framebuffer.
     ///
-    /// Requires a Tokio runtime with time enabled while the FPS limit is enabled.
+    /// Uses Embassy time for frame limiting.
     pub async fn flush(&mut self) {
         self.sdl_window.update(&self.framebuffer);
 

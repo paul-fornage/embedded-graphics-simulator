@@ -36,136 +36,137 @@ fn display_offset(window_size: Size, display_size: Size, anchor_point: AnchorPoi
     layout_rect.resized(display_size, anchor_point).top_left
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), core::convert::Infallible> {
-    // Create three simulated monochrome 128x64 OLED displays.
+#[embassy_executor::main]
+async fn main(_spawner: embassy_executor::Spawner) {
+    {
+        // Create three simulated monochrome 128x64 OLED displays.
 
-    let mut oled_displays = Vec::new();
-    for i in 0..3 {
-        let mut oled: SimulatorDisplay<BinaryColor> = SimulatorDisplay::new(Size::new(128, 64));
+        let mut oled_displays = Vec::new();
+        for i in 0..3 {
+            let mut oled: SimulatorDisplay<BinaryColor> = SimulatorDisplay::new(Size::new(128, 64));
+
+            Text::with_text_style(
+                &format!("Display {i}"),
+                oled.bounding_box().center(),
+                OLED_TEXT,
+                CENTERED,
+            )
+            .draw(&mut oled)
+            .await
+            .unwrap();
+
+            oled_displays.push(oled);
+        }
+
+        // Create a simulated color 320x240 TFT display.
+
+        let mut tft: SimulatorDisplay<Rgb565> = SimulatorDisplay::new(Size::new(320, 240));
+        tft.clear(Rgb565::new(5, 10, 5)).await.unwrap();
 
         Text::with_text_style(
-            &format!("Display {i}"),
-            oled.bounding_box().center(),
-            OLED_TEXT,
+            &format!("Draw here"),
+            tft.bounding_box().center(),
+            TFT_TEXT,
             CENTERED,
         )
-        .draw(&mut oled)
+        .draw(&mut tft)
         .await
         .unwrap();
 
-        oled_displays.push(oled);
-    }
+        // The simulated displays can now be added to common simulator window.
 
-    // Create a simulated color 320x240 TFT display.
+        let window_size = Size::new(1300, 500);
+        let mut window = MultiWindow::new("Multiple displays example", window_size);
+        window.clear(Rgb888::CSS_DIM_GRAY).await;
 
-    let mut tft: SimulatorDisplay<Rgb565> = SimulatorDisplay::new(Size::new(320, 240));
-    tft.clear(Rgb565::new(5, 10, 5)).await.unwrap();
+        let oled_settings = OutputSettingsBuilder::new()
+            .theme(BinaryColorTheme::OledBlue)
+            .scale(2)
+            .build();
+        let oled_size = oled_displays[0].output_size(&oled_settings);
 
-    Text::with_text_style(
-        &format!("Draw here"),
-        tft.bounding_box().center(),
-        TFT_TEXT,
-        CENTERED,
-    )
-    .draw(&mut tft)
-    .await
-    .unwrap();
-
-    // The simulated displays can now be added to common simulator window.
-
-    let window_size = Size::new(1300, 500);
-    let mut window = MultiWindow::new("Multiple displays example", window_size);
-    window.clear(Rgb888::CSS_DIM_GRAY).await;
-
-    let oled_settings = OutputSettingsBuilder::new()
-        .theme(BinaryColorTheme::OledBlue)
-        .scale(2)
-        .build();
-    let oled_size = oled_displays[0].output_size(&oled_settings);
-
-    for (oled, anchor) in oled_displays.iter().zip(
-        [
-            AnchorPoint::TopLeft,
-            AnchorPoint::TopCenter,
-            AnchorPoint::TopRight,
-        ]
-        .into_iter(),
-    ) {
-        let offset = display_offset(window_size, oled_size, anchor);
-        window.add_display(&oled, offset, &oled_settings);
-    }
-
-    let tft_settings = OutputSettings::default();
-    let tft_size = tft.output_size(&tft_settings);
-    let tft_offset = display_offset(window_size, tft_size, AnchorPoint::BottomCenter);
-
-    window.add_display(&tft, tft_offset, &tft_settings);
-
-    let border_style = PrimitiveStyleBuilder::new()
-        .stroke_width(5)
-        .stroke_alignment(StrokeAlignment::Inside)
-        .build();
-
-    let mut mouse_down = false;
-
-    'running: loop {
-        // Call `update_display` for all display. Note that the window won't be
-        // updated until `window.flush` is called.
-        for oled in &oled_displays {
-            window.update_display(oled).await;
+        for (oled, anchor) in oled_displays.iter().zip(
+            [
+                AnchorPoint::TopLeft,
+                AnchorPoint::TopCenter,
+                AnchorPoint::TopRight,
+            ]
+            .into_iter(),
+        ) {
+            let offset = display_offset(window_size, oled_size, anchor);
+            window.add_display(&oled, offset, &oled_settings);
         }
-        window.update_display(&tft).await;
-        window.flush().await;
 
-        for event in window.events() {
-            match event {
-                SimulatorEvent::MouseMove { point } => {
-                    // Mouse events use the window coordinate system.
-                    // `translate_mouse_position` can be used to translate the
-                    // mouse position into the display coordinate system.
+        let tft_settings = OutputSettings::default();
+        let tft_size = tft.output_size(&tft_settings);
+        let tft_offset = display_offset(window_size, tft_size, AnchorPoint::BottomCenter);
 
-                    for oled in &mut oled_displays {
-                        let is_inside = window.translate_mouse_position(oled, point).is_some();
+        window.add_display(&tft, tft_offset, &tft_settings);
 
-                        let style = PrimitiveStyleBuilder::from(&border_style)
-                            .stroke_color(BinaryColor::from(is_inside))
-                            .build();
+        let border_style = PrimitiveStyleBuilder::new()
+            .stroke_width(5)
+            .stroke_alignment(StrokeAlignment::Inside)
+            .build();
 
-                        oled.bounding_box()
-                            .into_styled(style)
-                            .draw(oled)
-                            .await
-                            .unwrap();
-                    }
+        let mut mouse_down = false;
 
-                    if mouse_down {
-                        if let Some(point) = window.translate_mouse_position(&tft, point) {
-                            Circle::with_center(point, 10)
-                                .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DODGER_BLUE))
-                                .draw(&mut tft)
+        'running: loop {
+            // Call `update_display` for all display. Note that the window won't be
+            // updated until `window.flush` is called.
+            for oled in &oled_displays {
+                window.update_display(oled).await;
+            }
+            window.update_display(&tft).await;
+            window.flush().await;
+
+            for event in window.events() {
+                match event {
+                    SimulatorEvent::MouseMove { point } => {
+                        // Mouse events use the window coordinate system.
+                        // `translate_mouse_position` can be used to translate the
+                        // mouse position into the display coordinate system.
+
+                        for oled in &mut oled_displays {
+                            let is_inside = window.translate_mouse_position(oled, point).is_some();
+
+                            let style = PrimitiveStyleBuilder::from(&border_style)
+                                .stroke_color(BinaryColor::from(is_inside))
+                                .build();
+
+                            oled.bounding_box()
+                                .into_styled(style)
+                                .draw(oled)
                                 .await
                                 .unwrap();
                         }
+
+                        if mouse_down {
+                            if let Some(point) = window.translate_mouse_position(&tft, point) {
+                                Circle::with_center(point, 10)
+                                    .into_styled(PrimitiveStyle::with_fill(Rgb565::CSS_DODGER_BLUE))
+                                    .draw(&mut tft)
+                                    .await
+                                    .unwrap();
+                            }
+                        }
                     }
+                    SimulatorEvent::MouseButtonDown {
+                        mouse_btn: MouseButton::Left,
+                        ..
+                    } => {
+                        mouse_down = true;
+                    }
+                    SimulatorEvent::MouseButtonUp {
+                        mouse_btn: MouseButton::Left,
+                        ..
+                    } => {
+                        mouse_down = false;
+                    }
+                    SimulatorEvent::Quit => break 'running,
+                    _ => {}
                 }
-                SimulatorEvent::MouseButtonDown {
-                    mouse_btn: MouseButton::Left,
-                    ..
-                } => {
-                    mouse_down = true;
-                }
-                SimulatorEvent::MouseButtonUp {
-                    mouse_btn: MouseButton::Left,
-                    ..
-                } => {
-                    mouse_down = false;
-                }
-                SimulatorEvent::Quit => break 'running,
-                _ => {}
             }
         }
     }
-
-    Ok(())
+    std::process::exit(0);
 }
